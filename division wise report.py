@@ -4,9 +4,9 @@ from pathlib import Path
 import io  # For in-memory download
 
 st.title("🔄 Division-wise Report Generator")
-st.write("Processes files from repo: Loads reference, scans for inputs (CSV/XLS/XLSX), generates output.")
+st.write("Loads reference from repo, upload inputs (CSV/XLS/XLSX) to generate report.")
 
-# Your original reference loading (direct from repo)
+# Load reference from repo (unchanged)
 reference_filename = "division wis.xlsx"
 reference_path = Path(reference_filename)
 if not reference_path.exists():
@@ -16,21 +16,25 @@ reference_df = pd.read_excel(reference_path)
 reference_df.columns = reference_df.columns.str.strip().str.lower()
 st.success(f"✅ Loaded reference: {reference_filename} ({len(reference_df)} rows)")
 
-# Your original input scanning (from repo)
-input_files = [
-    f for f in Path(".").glob("*.*")
-    if f.suffix.lower() in [".csv", ".xls", ".xlsx"] and f.name != reference_filename
-]
-if not input_files:
-    st.warning("⚠️ No input files (CSV/XLS/XLSX) found in repo. Add them and redeploy.")
-    st.stop()
-st.info(f"📂 Found {len(input_files)} input files: {', '.join(f.name for f in input_files)}")
+# File upload for inputs (new: multi-uploader)
+input_files = st.file_uploader(
+    "Upload Input Files (CSV/XLS/XLSX—up to 4 or more)",
+    accept_multiple_files=True,
+    type=['csv', 'xls', 'xlsx'],
+    help="Upload your 4 Excel files here (e.g., set1_data.xlsx, set2_data.xlsx, etc.). Bag types auto-detected from filenames."
+)
 
-# Your original combining logic
+if not input_files:
+    st.warning("👆 Upload at least one input file to proceed.")
+    st.stop()
+
+st.info(f"📂 Uploaded {len(input_files)} input files: {', '.join(f.name for f in input_files)}")
+
+# Combine inputs (adapted from your original)
 all_data = []
 for file in input_files:
     try:
-        if file.suffix.lower() == ".csv":
+        if file.name.lower().endswith('.csv'):
             df = pd.read_csv(file)
         else:
             df = pd.read_excel(file)
@@ -40,17 +44,19 @@ for file in input_files:
             df["bag type"] = "PL"
         elif "set2" in fname:
             df["bag type"] = "SP"
+        else:
+            df["bag type"] = "Unknown"  # Fallback—edit if needed
         all_data.append(df)
     except Exception as e:
         st.error(f"❌ Error reading {file.name}: {e}")
         st.stop()
 if not all_data:
-    st.warning("⚠️ No valid data in inputs.")
+    st.warning("⚠️ No valid data in uploads.")
     st.stop()
 combined_df = pd.concat(all_data, ignore_index=True)
-st.success(f"✅ Combined {len(combined_df)} rows")
+st.success(f"✅ Combined {len(combined_df)} rows from uploads")
 
-# Your original merge/filter
+# Merge/filter (your original)
 if 'to office name' not in combined_df.columns:
     st.error("❌ 'To Office Name' column not found in inputs.")
     st.stop()
@@ -63,14 +69,14 @@ merged_df = combined_df.merge(
 filtered_df = merged_df[merged_df['division'].notna()].copy()
 st.info(f"✅ Matched: {len(filtered_df)} rows")
 
-# Your original output prep
+# Output prep (your original)
 final_columns = ['division', 'to office name', 'bag number', 'article count', 'bag type']
 for col in final_columns:
     if col not in filtered_df.columns:
         filtered_df[col] = ""
 filtered_df = filtered_df[final_columns].sort_values(by='division')
 
-# Split and summary (your code)
+# Split and summary (your original)
 pl_df = filtered_df[filtered_df['bag type'].str.upper() == 'PL']
 sp_df = filtered_df[filtered_df['bag type'].str.upper() == 'SP']
 summary_df = (
@@ -80,10 +86,10 @@ summary_df = (
     .fillna(0).reset_index()
 )
 
-# Run button (processes on click)
+# Generate button (processes on click)
 if st.button("🚀 Generate Report", type="primary"):
-    with st.spinner("Processing..."):
-        # Create in-memory Excel (your output logic)
+    with st.spinner("🔄 Processing..."):
+        # In-memory Excel (your output)
         output_buffer = io.BytesIO()
         with pd.ExcelWriter(output_buffer, engine='openpyxl') as writer:
             pl_df.to_excel(writer, index=False, sheet_name='PL Bags')
@@ -99,10 +105,10 @@ if st.button("🚀 Generate Report", type="primary"):
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
 
-        # Preview summary
+        # Preview
         st.subheader("📊 Preview: Division Summary")
         st.dataframe(summary_df, use_container_width=True)
 
-        st.success("🎯 Report generated! Download above. Add more input files to repo for updates.")
+        st.success("🎯 Report ready! Download above.")
 else:
-    st.info("👆 Click 'Generate Report' to process files from repo.")
+    st.info("👆 Upload files, then click 'Generate Report'.")
